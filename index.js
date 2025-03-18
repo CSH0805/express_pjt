@@ -147,17 +147,20 @@ app.listen(PORT, () => {
 });
 
 
-app.get('/ping', (req, res) => {
-    res.send('pong');
-  });
+// app.get('/ping', (req, res) => {
+//     res.send('pong');
+//   });
 
-  app.get('/asdf', (req, res) => {
-    res.send('qwerty');
-  });
-  app.get('/abc', (req, res) => {
-    res.send('가나다');
-  });
+//   app.get('/asdf', (req, res) => {
+//     res.send('qwerty');
+//   });
+//   app.get('/abc', (req, res) => {
+//     res.send('가나다');
+//   });
 
   app.get('/users', (req, res) => {
     res.json(users);
+  });
+  app.get('/articles', (req, res) => {
+    res.json(articles);
   });
