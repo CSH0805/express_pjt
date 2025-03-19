@@ -202,17 +202,14 @@ app.listen(PORT, () => {
   })
 
   app.delete('/articles/:id', (req, res) => {
-    const articleId = parseInt(req.params.id);
-    
-    // 삭제할 게시글의 인덱스를 찾습니다.
-    const index = articles.findIndex(article => article.id === articleId);
-  
-    if (index !== -1) {  // 게시글이 존재하는 경우
-      const deletedArticle = articles.splice(index, 1)[0];  // 삭제하고 삭제된 게시글을 반환
-      res.json(deletedArticle);
-    } else {  // 게시글이 존재하지 않는 경우
-      res.status(404).json({ message: '게시글을 찾을 수 없습니다.' });
-    }
+
+    let id =req.params.id
+
+    console.log(id)
+
+    articles.splice(id-1, 1);
+
+    res.send("ok")
   });
   
   app.get('/articles/:id', (req,res)=>{
