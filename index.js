@@ -1,5 +1,15 @@
 const express = require('express');
 const app = express();
+
+const cors = require('cors');
+app.use(cors())
+
+app.use(express.static('public'));
+
+
+// json으로 된 post의 바디를 읽기 위해 필요요
+app.use(express.json())
+
 const PORT = 3000;
 
 
@@ -161,29 +171,60 @@ app.listen(PORT, () => {
   app.get('/users', (req, res) => {
     res.json(users);
   });
-  app.get('/articles', (req, res) => {
-    res.json(articles);
-  });
+
 
   app.get('/test', (req, res)=>{
     console.log(req.query.id);
     res.send("ok")
   })
 
-  app.get('/user/:id', (req, res)=>{
+  app.get('/articles', (req, res)=>{
+    console.log(articles);
+    res.json(articles)
+
+  })
+
+  app.post('/articles', (req, res)=>{
+    let data = req.body
+    let lastId = articles[articles.length - 1].id
+    data.id = lastId +1
     
-    console.log(req.params.id);
+    const now = new Date();
+    const isoString = now.toISOString();
+    
+    console.log(isoString);
 
-    let id = req.params.id;
+    data.date = isoString
 
-    let  user_len = users.length
 
-    for(let i =0; i < user_len; i++){
-        if (users[i].id == id){
-            res.send(users[i])
-        }
+    articles.push(data);
+    return res.json("ok")
+  })
+
+  app.delete('/articles/:id', (req, res) => {
+    const articleId = parseInt(req.params.id);
+    
+    // 삭제할 게시글의 인덱스를 찾습니다.
+    const index = articles.findIndex(article => article.id === articleId);
+  
+    if (index !== -1) {  // 게시글이 존재하는 경우
+      const deletedArticle = articles.splice(index, 1)[0];  // 삭제하고 삭제된 게시글을 반환
+      res.json(deletedArticle);
+    } else {  // 게시글이 존재하지 않는 경우
+      res.status(404).json({ message: '게시글을 찾을 수 없습니다.' });
+    }
+  });
+  
+  app.get('/articles/:id', (req,res)=>{
+   
+    let article_id = req.params.id
+
+    for(let i = 0; i < articles.length; i++){
+      if(articles[i].id == article_id){
+        return res.json(articles[i])
+      }
     }
 
-    res.send('ok')
+    return res.json("없었습니다.");
 
   })
