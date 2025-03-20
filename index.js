@@ -225,3 +225,16 @@ app.listen(PORT, () => {
     return res.json("없었습니다.");
 
   })
+
+  app.put('/articles/:id', (req, res)=>{   
+    let id = req.params.id - 1
+    let data = req.body
+    console.log(data)
+
+    articles[id] = data
+    console.log(articles[id])
+    console.log(id)
+
+    res.send("ok")
+
+  })
