@@ -49,12 +49,39 @@ app.get("/articles", (req, res) => {
 // get : /articles/:id
 app.get('/articles/:id', (req,res)=>{
 
-    let id = req.params.id
+    let id = req.params.id;
 
-    db.all("SELECT * FROM articles", [], (err, rows) => {
+    db.get("SELECT * FROM articles WHERE id = ?", [id], (err, row) => {
         if (err) {
-            return res.status(500).json({error: err.message});
+            return res.status(500).json({ error: err.message });
         }
-        res.json(rows);  // 조회된 모든 게시글을 JSON 형태로 반환
+        if (!row) {
+            return res.status(404).json({ error: "Article not found" });
+        }
+        res.json(row);  // 조회된 단일 게시글을 JSON 형태로 반환
     });
+    
 })
+
+
+app.delete('/articles/:id', (req, res) => {
+
+    const deleteArticle = (id) => {
+    const sql = `DELETE FROM articles WHERE id = ?`;
+
+    db.run(sql, [id], function (err) {
+        if (err) {
+            console.error('Error deleting article:', err.message);
+            return;
+        }
+        console.log(`Article with ID ${id} deleted successfully.`);
+    });
+    };
+
+// 사용 예시
+    const id = req.params.id; // 삭제하려는 아티클의 ID
+    deleteArticle(id);
+
+    res.send("okeydokey")
+
+  })
