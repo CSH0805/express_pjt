@@ -23,3 +23,35 @@ function initDB() {
 
 initDB();
 
+function initDB() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) {
+      console.error("테이블 생성 에러:", err);
+    } else {
+      console.log("테이블 준비 완료(articles)");
+    }
+  });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      article_id INTEGER,
+      FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+    )
+  `, (err) => {
+    if (err) {
+      console.error("테이블 생성 에러:", err);
+    } else {
+      console.log("테이블 준비 완료(comments)");
+    }
+  });
+}

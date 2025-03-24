@@ -238,3 +238,26 @@ app.listen(PORT, () => {
     res.send("ok")
 
   })
+
+
+  app.delete('articles/:id', (req, res) => {
+    const sqlite3 = require('sqlite3').verbose();
+    const db = new sqlite3.Database('database.sqlite'); // SQLite 데이터베이스 파일
+
+    const deleteArticle = (id) => {
+    const sql = `DELETE FROM articles WHERE id = ?`;
+
+    db.run(sql, [id], function (err) {
+        if (err) {
+            console.error('Error deleting article:', err.message);
+            return;
+        }
+        console.log(`Article with ID ${id} deleted successfully.`);
+    });
+    };
+
+// 사용 예시
+    const id = 1; // 삭제하려는 아티클의 ID
+    deleteArticle(id);
+
+  })

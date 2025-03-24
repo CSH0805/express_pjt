@@ -85,3 +85,58 @@ app.delete('/articles/:id', (req, res) => {
     res.send("okeydokey")
 
   })
+
+
+
+app.put('/articles/:id', (req, res) => {
+    const { title, content } = req.body;
+    const id = req.params.id;
+
+    if (!title || !content) {
+        return res.status(400).json({ error: "Title and content are required" });
+    }
+
+    const sql = `UPDATE articles SET title = ?, content = ? WHERE id = ?`;
+    const params = [title, content, id];
+
+    db.run(sql, params, function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: "Article not found" });
+        }
+        res.json({ message: "Article updated successfully", id });
+    });
+});
+
+
+app.post("/articles/:id/comments", (req, res) => {
+    let articleId = req.params.id;
+    let content = req.body.content;
+
+    if (!content) {
+        return res.status(400).json({ error: "Content is required" });
+    }
+
+    let query = "INSERT INTO comments (content, created_at, article_id) VALUES (?, datetime('now'), ?)";
+    db.run(query, [content, articleId], function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.status(201).json({ id: this.lastID, content, created_at: new Date().toISOString(), article_id: articleId });
+    });
+});
+
+
+app.get("/articles/:id/comments", (req, res) => {
+    let articleId = req.params.id;
+    let query = "SELECT * FROM comments WHERE article_id = ? ORDER BY created_at DESC";
+    
+    db.all(query, [articleId], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
+});
