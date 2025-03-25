@@ -1,5 +1,7 @@
 const express = require('express');
 const app = express();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const cors = require('cors');
 app.use(cors())
@@ -21,18 +23,6 @@ app.listen(PORT, () => {
     console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
   });
 
-app.post("/articles", (req, res)=>{
-    let {title, content} = req.body
-    
-    db.run(`INSERT INTO articles (title, content) VALUES (?, ?)`,
-        [title, content],
-        function(err) {
-          if (err) {
-            return res.status(500).json({error: err.message});
-          }
-          res.json({id: this.lastID, title, content});
-        });
-})
 
 // 전체 아티클 리스트
 app.get("/articles", (req, res) => {
@@ -140,3 +130,199 @@ app.get("/articles/:id/comments", (req, res) => {
         res.json(rows);
     });
 });
+  
+
+  app.post('/user', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: "이메일과 비밀번호를 입력하세요." });
+    }
+
+    try {
+        // 🔹 이메일 중복 체크
+        db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, row) => {
+            if (err) {
+                console.log(err)
+                return res.status(500).json({ error: "데이터베이스 오류" });
+            }
+            if (row) {
+                return res.status(400).json({ error: "이미 존재하는 이메일입니다." });
+            }
+
+            // 🔹 비밀번호 해싱 후 삽입
+            const hashedPassword = await bcrypt.hash(password, 10);
+            db.run(`INSERT INTO users (email, password) VALUES (?, ?)`, [email, hashedPassword], function (err) {
+                if (err) {
+                    return res.status(500).json({ error: "회원가입 실패." });
+                }
+                res.status(201).json({ message: "회원가입 성공", userId: this.lastID });
+            });
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: "서버 오류 발생" });
+    }
+});
+
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+  
+    // 이메일과 비밀번호가 모두 제공되었는지 확인
+    if (!email || !password) {
+      return res.status(400).json({ error: '이메일과 비밀번호를 모두 입력해주세요.' });
+    }
+  
+    // 이메일로 사용자 찾기
+    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+      if (err) {
+        return res.status(500).json({ error: '로그인 중 오류가 발생했습니다.' });
+      }
+  
+      if (!user) {
+        return res.status(400).json({ error: '이메일 또는 비밀번호가 잘못되었습니다.' });
+      }
+  
+      try {
+        // 비밀번호 비교
+        const isMatch = await bcrypt.compare(password, user.password);
+  
+        if (isMatch) {
+          // JWT 토큰 생성
+          const token = jwt.sign(
+            { userId: user.id, email: user.email }, // payload
+            'your_jwt_secret_key', // 비밀 키 (환경변수로 관리하는 것이 좋습니다)
+            { expiresIn: '1h' } // 토큰 만료 시간 설정
+          );
+  
+          res.status(200).json({
+            message: '로그인 성공',
+            userId: user.id,
+            email: user.email,
+            token: token // JWT 토큰 반환
+          });
+        } else {
+          res.status(400).json({ error: '이메일 또는 비밀번호가 잘못되었습니다.' });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: '비밀번호 비교 중 오류가 발생했습니다.' });
+      }
+    });
+  });
+
+  
+app.get('/logintest', (req, res)=>{
+    console.log(req.headers.authorization.split(' ')[1])
+    let token = req.headers.authorization.split(' ')[1]
+
+    jwt.verify(token, 'your_jwt_secret_key', (err, decoded)=>{
+        if(err){
+            return res.send("에러러")
+        }
+        
+        return res.send('로그인 성공!')
+    })
+
+})
+
+
+// JWT 토큰 인증 미들웨어
+// JWT 인증 미들웨어
+function authenticateToken(req, res, next) {
+    
+    const token = req.headers['authorization']?.split(' ')[1];  // 'Bearer <token>' 형태에서 토큰만 추출
+
+    if (!token) {
+        return res.status(401).json({ error: '로그인이 필요합니다.' });
+    }
+
+    jwt.verify(token, 'your_jwt_secret_key', (err, decoded) => {
+        if (err) {
+            // 유효하지 않은 토큰일 경우
+            return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });  // 여기에 메시지를 추가
+        }
+
+        // JWT에서 userId를 추출하여 요청 객체에 추가
+        req.user = decoded;
+        next();  // 다음 미들웨어로 진행
+    });
+}
+
+// 게시글 작성 API (로그인한 사용자만 작성 가능)
+// 게시글 작성 API
+app.post("/articles", authenticateToken, (req, res) => {
+    console.log('asd')
+    const { title, content } = req.body;
+
+    if (!title || !content) {
+        return res.status(400).json({ error: '제목과 내용은 필수입니다.' });
+    }
+
+    db.run(`INSERT INTO articles (title, content) VALUES (?, ?)`,
+        [title, content],
+        function(err) {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ id: this.lastID, title, content });
+        });
+});
+
+async function loginUser() {
+    const email = "user@example.com";
+    const password = "yourpassword";
+
+    try {
+        const response = await fetch('http://localhost:3000/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem('token', result.token);  // 로그인 후 받은 JWT 토큰을 로컬스토리지에 저장
+            console.log('로그인 성공', result);
+        } else {
+            console.log('로그인 실패', result.error);
+        }
+    } catch (error) {
+        console.error('로그인 오류:', error);
+    }
+}
+
+async function createArticle() {
+    const token = localStorage.getItem('token');  // 로컬스토리지에서 JWT 토큰 가져오기
+    const title = "새로운 게시글";
+    const content = "게시글 내용입니다.";
+
+    if (!token) {
+        alert("로그인이 필요합니다.");
+        return;
+    }
+
+    try {
+        const response = await fetch('http://localhost:3000/articles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`  // JWT 토큰을 Authorization 헤더에 포함
+            },
+            body: JSON.stringify({ title, content })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            console.log('게시글 작성 성공:', result);
+        } else {
+            console.log('게시글 작성 실패:', result.error);
+        }
+    } catch (error) {
+        console.error('게시글 작성 오류:', error);
+    }
+}
