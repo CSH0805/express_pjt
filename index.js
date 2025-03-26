@@ -2,6 +2,8 @@ const express = require('express');
 const app = express();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
+const secretKey = process.env.SECRET_KEY;
 
 const cors = require('cors');
 app.use(cors())
@@ -13,6 +15,33 @@ app.use(express.static('public'));
 app.use(express.json())
 
 const PORT = 3000;
+
+
+
+
+function authMiddleware(req, res, next) {
+    const authHeader = req.headers.authorization;
+  
+    if (!authHeader) {
+      return res.status(401).send('인증 헤더 없음');
+    }
+  
+    const token = authHeader.split(' ')[1];
+  
+    jwt.verify(token, secretKey, (err, decoded) => {
+      if (err) {
+        return res.status(401).send('토큰 검증 실패');
+      }
+  
+      // 인증 성공 시 decoded 안에 있는 사용자 정보 req에 저장
+      req.user = decoded;
+      next(); // 다음 미들웨어 or 라우터로
+    });
+  }
+  
+  
+
+module.exports = authMiddleware;
 
 //db 연결
 const sqlite3 = require('sqlite3').verbose();
@@ -37,6 +66,7 @@ app.get("/articles", (req, res) => {
 
 // 개별 아이티클 주는 api를 만들자
 // get : /articles/:id
+//로그인 필요
 app.get('/articles/:id', (req,res)=>{
 
     let id = req.params.id;
@@ -53,31 +83,46 @@ app.get('/articles/:id', (req,res)=>{
     
 })
 
+// 로그인 필요
+// 게시글이 본인인지 확인하는 것도 필요(추후 제작)
+//로그인 필요
+// 로그인 필요 + 본인 게시글인지 확인 필요
+app.delete('/articles/:id', authMiddleware, (req, res) => {
+    const articleId = req.params.id;
+    const userId = req.user.id; // JWT에서 추출한 사용자 ID
 
-app.delete('/articles/:id', (req, res) => {
-
-    const deleteArticle = (id) => {
-    const sql = `DELETE FROM articles WHERE id = ?`;
-
-    db.run(sql, [id], function (err) {
+    // 1️⃣ 삭제하려는 게시글이 존재하는지 확인 + 본인 게시글인지 확인
+    const sql = `SELECT * FROM articles WHERE id = ?`;
+    db.get(sql, [articleId], (err, article) => {
         if (err) {
-            console.error('Error deleting article:', err.message);
-            return;
+            console.error('Error finding article:', err.message);
+            return res.status(500).send('서버 오류');
         }
-        console.log(`Article with ID ${id} deleted successfully.`);
+
+        if (!article) {
+            return res.status(404).send('게시글을 찾을 수 없음');
+        }
+
+        if (article.user_id !== userId) {  // 🛑 본인 게시글인지 체크
+            return res.status(403).send('삭제 권한이 없음');
+        }
+
+        // 2️⃣ 게시글 삭제
+        const deleteSql = `DELETE FROM articles WHERE id = ?`;
+        db.run(deleteSql, [articleId], function (err) {
+            if (err) {
+                console.error('Error deleting article:', err.message);
+                return res.status(500).send('삭제 실패');
+            }
+            console.log(`Article with ID ${articleId} deleted successfully.`);
+            res.send('삭제 완료');
+        });
     });
-    };
-
-// 사용 예시
-    const id = req.params.id; // 삭제하려는 아티클의 ID
-    deleteArticle(id);
-
-    res.send("okeydokey")
-
-  })
+});
 
 
-
+// 로그인 필요
+// 게시글이 본인인지 확인하는 것도 필요(추후 제작)
 app.put('/articles/:id', (req, res) => {
     const { title, content } = req.body;
     const id = req.params.id;
@@ -118,6 +163,7 @@ app.post("/articles/:id/comments", (req, res) => {
     });
 });
 
+// 로그인 필요
 
 app.get("/articles/:id/comments", (req, res) => {
     let articleId = req.params.id;
@@ -191,7 +237,7 @@ app.post('/login', (req, res) => {
           // JWT 토큰 생성
           const token = jwt.sign(
             { userId: user.id, email: user.email }, // payload
-            'your_jwt_secret_key', // 비밀 키 (환경변수로 관리하는 것이 좋습니다)
+            secretKey, // 비밀 키 (환경변수로 관리하는 것이 좋습니다)
             { expiresIn: '1h' } // 토큰 만료 시간 설정
           );
   
@@ -216,7 +262,7 @@ app.get('/logintest', (req, res)=>{
     console.log(req.headers.authorization.split(' ')[1])
     let token = req.headers.authorization.split(' ')[1]
 
-    jwt.verify(token, 'your_jwt_secret_key', (err, decoded)=>{
+    jwt.verify(token, secretKey, (err, decoded)=>{
         if(err){
             return res.send("에러러")
         }
@@ -237,7 +283,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: '로그인이 필요합니다.' });
     }
 
-    jwt.verify(token, 'your_jwt_secret_key', (err, decoded) => {
+    jwt.verify(token, secretKey, (err, decoded) => {
         if (err) {
             // 유효하지 않은 토큰일 경우
             return res.status(403).json({ error: '유효하지 않은 토큰입니다.' });  // 여기에 메시지를 추가
@@ -252,7 +298,6 @@ function authenticateToken(req, res, next) {
 // 게시글 작성 API (로그인한 사용자만 작성 가능)
 // 게시글 작성 API
 app.post("/articles", authenticateToken, (req, res) => {
-    console.log('asd')
     const { title, content } = req.body;
 
     if (!title || !content) {
